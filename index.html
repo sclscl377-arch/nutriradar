@@ -23,7 +23,7 @@
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
   <link rel="icon" type="image/png" sizes="512x512" href="icons/icon-512.png">
 
-  <link rel="stylesheet" href="styles/main.css">
+  <link rel="stylesheet" href="styles/main.css?v=3.1">
 
   <!-- 引入 Chart.js (雷達圖) -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -44,6 +44,9 @@
     <div class="header-action">
       <button id="quickCameraBtn" class="btn-camera-header" type="button">
         <span>📸 拍照測評</span>
+      </button>
+      <button id="forceRefreshBtn" class="btn-refresh-header" type="button" title="點擊強制更新至最新版本並清除舊快取">
+        <span>🔄</span>
       </button>
     </div>
   </header>
@@ -503,15 +506,57 @@
   </div>
 
   <!-- 引入應用程式主要邏輯模組 -->
-  <script type="module" src="js/app.js"></script>
+  <script type="module" src="js/app.js?v=3.1"></script>
 
-  <!-- ── PWA Service Worker 註冊 ── -->
+  <!-- ── PWA Service Worker 註冊與強制更新機制 ── -->
   <script>
+    // 一鍵強制清除所有快取並更新
+    async function forceUpdateAndReload() {
+      const btn = document.getElementById('forceRefreshBtn');
+      if (btn) btn.innerText = '⏳';
+      try {
+        if ('caches' in window) {
+          const names = await caches.keys();
+          await Promise.all(names.map(name => caches.delete(name)));
+        }
+        if ('serviceWorker' in navigator) {
+          const regs = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(regs.map(r => r.unregister()));
+        }
+      } catch (e) {
+        console.warn('Cache clearing error:', e);
+      }
+      // 附加時間戳徹底繞過瀏覽器磁碟快取
+      window.location.href = window.location.pathname + '?reload=' + Date.now();
+    }
+
+    const refreshBtn = document.getElementById('forceRefreshBtn');
+    if (refreshBtn) {
+      refreshBtn.addEventListener('click', () => {
+        if (confirm('是否清除快取並立即載入最新版本？')) {
+          forceUpdateAndReload();
+        }
+      });
+    }
+
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('./sw.js')
-          .then(reg => console.log('[PWA] Service Worker registered:', reg.scope))
+          .then(reg => {
+            console.log('[PWA] Service Worker registered:', reg.scope);
+            // 每次載入時主動檢查線上是否有新版 SW
+            reg.update();
+          })
           .catch(err => console.warn('[PWA] Service Worker registration failed:', err));
+
+        // 當新版 SW 取代舊版接管頁面時，自動重新載入頁面以套用最新版樣式
+        let refreshing = false;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          if (!refreshing) {
+            refreshing = true;
+            window.location.reload();
+          }
+        });
       });
     }
   </script>
