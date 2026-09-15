@@ -37,6 +37,12 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+html {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
 body {
   font-family: 'Plus Jakarta Sans', 'Noto Sans TC', sans-serif;
   background-color: var(--bg-primary);
@@ -45,6 +51,10 @@ body {
     radial-gradient(circle at 85% 85%, rgba(59, 130, 246, 0.09) 0%, transparent 45%);
   color: var(--text-main);
   min-height: 100vh;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+  position: relative;
   line-height: 1.5;
   padding-bottom: 60px;
 }
@@ -62,12 +72,18 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .logo-area {
   display: flex;
   align-items: center;
   gap: 10px;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
 }
 
 .logo-icon {
@@ -80,6 +96,7 @@ body {
   justify-content: center;
   font-size: 18px;
   box-shadow: 0 0 16px var(--accent-green-glow);
+  flex-shrink: 0;
 }
 
 .brand-title {
@@ -89,12 +106,18 @@ body {
   background: linear-gradient(to right, #ffffff, #a7f3d0);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .brand-subtitle {
   font-size: 0.72rem;
   color: var(--text-muted);
   font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .btn-camera-header {
@@ -110,6 +133,8 @@ body {
   display: flex;
   align-items: center;
   gap: 6px;
+  flex-shrink: 0;
+  white-space: nowrap;
   transition: transform 0.15s ease;
 }
 
@@ -119,12 +144,15 @@ body {
 
 /* 主佈局容器 */
 .app-container {
+  width: 100%;
   max-width: 1240px;
+  min-width: 0;
   margin: 0 auto;
   padding: 20px 16px;
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: 100%;
   gap: 20px;
+  overflow-x: hidden;
 }
 
 @media (min-width: 980px) {
@@ -137,12 +165,17 @@ body {
 .bottom-preset-section {
   grid-column: 1 / -1;
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .left-column {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 
 /* 通用玻璃卡片 */
@@ -153,6 +186,11 @@ body {
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
   padding: 18px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  word-break: break-word;
+  overflow-wrap: break-word;
   box-shadow: var(--shadow-glow);
   transition: border-color 0.25s ease;
 }
@@ -460,33 +498,42 @@ body {
 
 .form-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
+  width: 100%;
 }
 
 .form-group {
   display: flex;
   flex-direction: column;
   gap: 3px;
+  min-width: 0;
 }
 
 .form-group.full-width {
-  grid-column: span 2;
+  grid-column: 1 / -1;
 }
 
 .form-label-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 4px;
 }
 
 .form-label {
   font-size: 0.75rem;
   color: var(--text-muted);
   font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .form-input, .form-select {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
   background: rgba(0, 0, 0, 0.4);
   border: 1px solid var(--border-subtle);
   color: var(--text-main);
@@ -774,8 +821,9 @@ body {
 /* 👥 人群適配矩陣 (置於上方) */
 .persona-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(105px, 1fr));
   gap: 10px;
+  width: 100%;
 }
 
 .persona-card {
@@ -788,6 +836,7 @@ body {
   flex-direction: column;
   gap: 4px;
   position: relative;
+  min-width: 0;
 }
 
 .persona-header-row {
@@ -811,8 +860,10 @@ body {
 /* 圖表與 ROI 雙欄 */
 .visuals-grid {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: 100%;
   gap: 16px;
+  width: 100%;
+  max-width: 100%;
 }
 
 @media (min-width: 768px) {
@@ -824,9 +875,16 @@ body {
 .chart-wrapper {
   position: relative;
   height: 260px;
+  width: 100%;
+  max-width: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
+}
+
+.chart-wrapper canvas {
+  max-width: 100% !important;
 }
 
 /* 雷達圖各軸標準註解 */
@@ -837,6 +895,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  width: 100%;
 }
 
 .guide-item {
@@ -846,6 +905,7 @@ body {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
+  word-break: break-word;
 }
 
 .guide-item strong {
@@ -857,6 +917,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  width: 100%;
 }
 
 .roi-card {
@@ -867,12 +928,16 @@ body {
   display: flex;
   flex-direction: column;
   gap: 3px;
+  width: 100%;
+  min-width: 0;
 }
 
 .roi-card-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px;
 }
 
 .roi-name {
@@ -881,12 +946,14 @@ body {
   color: var(--text-main);
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
 }
 
 .roi-value {
   font-size: 0.95rem;
   font-weight: 700;
   color: #fff;
+  white-space: nowrap;
 }
 
 .roi-value.highlight {
@@ -900,6 +967,7 @@ body {
   align-items: center;
   gap: 4px;
   flex-wrap: wrap;
+  word-break: break-word;
 }
 
 .spec-badge {
@@ -1102,3 +1170,155 @@ body {
 .btn-modal-action:hover {
   transform: translateY(-1px);
 }
+
+/* =========================================================
+   📱 手機端極致防溢出與自適應響應式規則 (Mobile Responsive)
+   全面防止水平滾動 (No Horizontal Scroll)
+========================================================= */
+@media (max-width: 600px) {
+  .header {
+    padding: 10px 14px;
+  }
+  
+  .logo-icon {
+    width: 32px;
+    height: 32px;
+    font-size: 16px;
+  }
+
+  .brand-title {
+    font-size: 1.05rem;
+  }
+
+  .brand-subtitle {
+    font-size: 0.65rem;
+    max-width: 170px;
+  }
+
+  .btn-camera-header {
+    padding: 6px 11px;
+    font-size: 0.78rem;
+  }
+
+  .app-container {
+    padding: 12px 10px;
+    gap: 14px;
+    width: 100vw;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  .glass-panel {
+    padding: 14px 12px;
+    border-radius: 14px;
+  }
+
+  .form-grid {
+    grid-template-columns: 1fr; /* 單欄排列，避免在小螢幕被雙欄擠爆 */
+    gap: 8px;
+  }
+
+  .form-group.full-width {
+    grid-column: 1;
+  }
+
+  .score-hero-panel {
+    padding: 14px 12px;
+    gap: 12px;
+  }
+
+  .score-circle {
+    width: 95px;
+    height: 95px;
+    border-width: 4px;
+  }
+
+  .score-number {
+    font-size: 2rem;
+  }
+
+  .food-display-name {
+    font-size: 1.1rem;
+  }
+
+  .persona-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .persona-card {
+    padding: 6px 4px;
+  }
+
+  .persona-name {
+    font-size: 0.68rem;
+  }
+
+  .persona-score {
+    font-size: 1.15rem;
+  }
+
+  .chart-wrapper {
+    height: 230px;
+  }
+
+  .roi-card {
+    padding: 7px 10px;
+  }
+
+  .roi-name {
+    font-size: 0.78rem;
+  }
+
+  .roi-value {
+    font-size: 0.88rem;
+  }
+
+  .preset-card {
+    padding: 8px 10px;
+  }
+
+  .preset-card-name {
+    font-size: 0.8rem;
+  }
+
+  .preset-card-badge {
+    font-size: 0.65rem;
+    padding: 2px 6px;
+  }
+
+  .info-modal-card {
+    max-width: calc(100vw - 20px);
+    margin: 10px;
+  }
+
+  .modal-body {
+    padding: 14px;
+  }
+}
+
+@media (max-width: 380px) {
+  .persona-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .brand-subtitle {
+    display: none; /* 超窄手機隱藏副標題，確保頂部不被擠爆 */
+  }
+
+  .score-hero-panel {
+    justify-items: center;
+    text-align: center;
+  }
+
+  .food-title-row {
+    justify-content: center;
+  }
+
+  .completeness-header {
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+}
+
