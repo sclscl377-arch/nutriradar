@@ -230,18 +230,6 @@
         </div>
       </div>
 
-      <!-- 3. 經典對比案例庫 (直式切換拉霸清單) -->
-      <div class="glass-panel preset-selector-container">
-        <div class="panel-title-row">
-          <h2 class="panel-title" style="margin-bottom:0;"><span>🥗</span> 經典對比範例</h2>
-          <span class="badge badge-blue" style="font-size:0.7rem;">直立滑動清單</span>
-        </div>
-        <p class="section-desc" style="margin-top:6px;">點擊即時載入各類型食物標籤（上下滑動切換）：</p>
-        <div class="preset-vertical-track" id="presetTrack">
-          <!-- 由 JS 動態生成直式卡片按鈕 -->
-        </div>
-      </div>
-
     </section>
 
     <!-- 右側：評分結果與視覺化分析面板 -->
@@ -464,6 +452,20 @@
       </div>
 
     </section>
+    
+    <!-- 經典對比案例庫 (置於最下方) -->
+    <section class="bottom-preset-section">
+      <div class="glass-panel preset-selector-container">
+        <div class="panel-title-row">
+          <h2 class="panel-title" style="margin-bottom:0;"><span>🥗</span> 經典對比範例</h2>
+          <span class="badge badge-blue" style="font-size:0.7rem;">直立滑動清單</span>
+        </div>
+        <p class="section-desc" style="margin-top:6px;">點擊即時載入各類型食物標籤（上下滑動切換）：</p>
+        <div class="preset-vertical-track" id="presetTrack">
+          <!-- 由 JS 動態生成直式卡片按鈕 -->
+        </div>
+      </div>
+    </section>
 
   </main>
 
@@ -507,7 +509,7 @@
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js')
+        navigator.serviceWorker.register('./sw.js')
           .then(reg => console.log('[PWA] Service Worker registered:', reg.scope))
           .catch(err => console.warn('[PWA] Service Worker registration failed:', err));
       });

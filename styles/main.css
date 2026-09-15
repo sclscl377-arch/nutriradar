@@ -134,6 +134,11 @@ body {
   }
 }
 
+.bottom-preset-section {
+  grid-column: 1 / -1;
+  width: 100%;
+}
+
 .left-column {
   display: flex;
   flex-direction: column;

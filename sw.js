@@ -1,18 +1,23 @@
 // NutriRadar Service Worker
 // 版本號：更新後瀏覽器會重新安裝新版 SW
-const CACHE_NAME = 'nutriradar-v1';
+const CACHE_NAME = 'nutriradar-v2';
 
-// 要預先快取的靜態資源
-const PRECACHE_ASSETS = [
-  '/',
-  '/index.html',
-  '/styles/main.css',
-  '/js/app.js',
-  '/js/engine/ocr_engine.js',
-  '/js/engine/scoring_engine.js',
-  '/icons/icon-192.png',
-  '/icons/icon-512.png',
-  '/manifest.json'
+// 取得 SW 所在目錄路徑（相容本地伺服器 / 與 GitHub Pages /nutriradar/）
+const BASE_PATH = self.registration.scope;
+
+// 要預先快取的靜態資源（相對路徑）
+const RELATIVE_ASSETS = [
+  './',
+  'index.html',
+  'styles/main.css',
+  'js/app.js',
+  'js/data/preset_foods.js',
+  'js/data/nutrition_glossary.js',
+  'js/engine/ocr_engine.js',
+  'js/engine/scoring_engine.js',
+  'icons/icon-192.png',
+  'icons/icon-512.png',
+  'manifest.json'
 ];
 
 // ─── 安裝事件：預先快取靜態資源 ───────────────────────────────
@@ -21,8 +26,9 @@ self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => {
-        console.log('[SW] Pre-caching assets');
-        return cache.addAll(PRECACHE_ASSETS);
+        console.log('[SW] Pre-caching assets based on scope:', BASE_PATH);
+        const urlsToCache = RELATIVE_ASSETS.map(asset => new URL(asset, BASE_PATH).href);
+        return cache.addAll(urlsToCache);
       })
       .then(() => self.skipWaiting()) // 立即激活新版 SW
   );
@@ -90,7 +96,7 @@ self.addEventListener('fetch', event => {
       .catch(() => {
         // 離線時顯示主頁（僅對 HTML 請求）
         if (event.request.destination === 'document') {
-          return caches.match('/index.html');
+          return caches.match(new URL('./', BASE_PATH).href) || caches.match(new URL('index.html', BASE_PATH).href);
         }
       })
   );
