@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>NutriRadar - 拍照即測！食物營養價值與 ROI 評估系統</title>
+  <meta name="description" content="拍照一秒解析營養標示！以五維度營養價值雷達、Nutrition ROI 與情境適配度，深度解析食物真實營養。">
+
+  <!-- ── PWA Manifest ── -->
+  <link rel="manifest" href="manifest.json">
+
+  <!-- ── PWA Theme Color（Android Chrome 工具列色彩）── -->
+  <meta name="theme-color" content="#10b981">
+
+  <!-- ── iOS PWA 支援 ── -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="NutriRadar">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" sizes="512x512" href="icons/icon-512.png">
+
+  <!-- ── Favicon ── -->
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="icons/icon-512.png">
+
+  <link rel="stylesheet" href="styles/main.css">
+
+  <!-- 引入 Chart.js (雷達圖) -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <!-- 引入 Tesseract.js (瀏覽器端 OCR 辨識) -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+</head>
+<body>
+
+  <!-- 頂部導航 -->
+  <header class="header">
+    <div class="logo-area">
+      <div class="logo-icon">📷</div>
+      <div>
+        <h1 class="brand-title">NutriRadar</h1>
+        <p class="brand-subtitle">拍照即測 • 食物營養價值與 ROI 評估</p>
+      </div>
+    </div>
+    <div class="header-action">
+      <button id="quickCameraBtn" class="btn-camera-header" type="button">
+        <span>📸 拍照測評</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- 主容器 -->
+  <main class="app-container">
+    
+    <!-- 左側：拍照輸入與即時解析區 -->
+    <section class="left-column">
+      
+      <!-- 1. 拍照優先核心區 (Camera-First Hero Box) -->
+      <div class="glass-panel camera-main-panel">
+        <h2 class="panel-title">
+          <span>📷</span> 拍攝 / 上傳營養標示
+          <span class="badge badge-green" style="margin-left:auto; font-size:0.7rem;">主要操作</span>
+        </h2>
+        
+        <!-- 點擊/拖曳拍照上傳區 -->
+        <div class="camera-dropzone" id="cameraDropzone">
+          <div id="cameraPrompt">
+            <div class="camera-big-icon">📸</div>
+            <div class="camera-main-text">點擊拍照 或 從相簿選擇標籤照片</div>
+            <div class="camera-sub-text">支援台灣/國際營養標示格式，自動識別萃取數據</div>
+          </div>
+
+          <!-- 圖片預覽與辨識進度 -->
+          <div id="previewContainer" class="preview-container" style="display: none;">
+            <img id="imagePreview" class="image-preview" alt="營養標籤預覽">
+            <div class="ocr-status-overlay" id="ocrOverlay">
+              <div class="spinner" id="ocrSpinner"></div>
+              <div class="ocr-status-text" id="ocrStatusText">AI 正在辨識營養標示中...</div>
+              <div class="ocr-progress-bar">
+                <div class="ocr-progress-fill" id="ocrProgressFill" style="width: 0%;"></div>
+              </div>
+            </div>
+            <div class="preview-actions">
+              <button type="button" id="rephotoBtn" class="btn-rephoto">🔄 更換照片 / 重新拍攝</button>
+            </div>
+          </div>
+
+          <!-- 隱藏的 input: 支援相機拍照 capture="environment" -->
+          <input type="file" id="imageFileInput" accept="image/*" capture="environment" style="display: none;">
+        </div>
+
+        <!-- 辨識成功狀態條 -->
+        <div id="ocrSuccessBar" class="ocr-success-banner" style="display: none;">
+          <span id="ocrStatusMsg">✅ 標籤辨識成功！數據已自動計算</span>
+          <button type="button" id="toggleFormBtn" class="btn-text-link">✏️ 展開/手動修正數據</button>
+        </div>
+
+        <!-- 快速試用模擬照片按鈕 -->
+        <div class="sample-photo-bar">
+          <span class="sample-photo-title">💡 快速測試照片標籤：</span>
+          <div class="sample-photo-chips">
+            <button type="button" class="sample-chip" data-sample="pasta">🍝 義大利麵</button>
+            <button type="button" class="sample-chip" data-sample="biscuit">🍪 夾心餅乾</button>
+            <button type="button" class="sample-chip" data-sample="oats">🌾 純大燕麥片</button>
+            <button type="button" class="sample-chip" data-sample="cola">🥤 經典可樂</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. 手動微調/檢查數值 (折疊式面板，拍照完成後可按需展開) -->
+      <div class="glass-panel collapsible-panel" id="manualFormPanel">
+        <div class="collapsible-header" id="formToggleHeader">
+          <h2 class="panel-title" style="margin-bottom:0;">
+            <span>✏️</span> 數值明細與微調
+          </h2>
+          <span class="collapse-icon" id="collapseIcon">▼</span>
+        </div>
+        
+        <div class="collapsible-body" id="collapsibleBody" style="display: none;">
+          <p class="section-desc">已由照片自動萃取（每 100g 含量）。點擊項目右方 <strong class="info-inline">ⓘ</strong> 可查看名詞解釋與單位說明：</p>
+          <form id="nutritionForm">
+            <div class="form-grid">
+              
+              <div class="form-group full-width">
+                <div class="form-label-row">
+                  <label class="form-label" for="foodName">食品名稱</label>
+                </div>
+                <input type="text" id="foodName" class="form-input" value="土耳其杜蘭小麥義大利麵 (您照片案例)">
+              </div>
+
+              <div class="form-group">
+                <div class="form-label-row">
+                  <label class="form-label" for="calories">熱量 (kcal) *</label>
+                  <button type="button" class="info-btn" data-info-key="field_calories" title="點擊查看名詞解釋">ⓘ</button>
+                </div>
+                <input type="number" step="0.1" id="calories" class="form-input" value="355.1" required>
+              </div>
+
+              <div class="form-group">
+                <div class="form-label-row">
+                  <label class="form-label" for="protein">蛋白質 (g) *</label>
+                  <button type="button" class="info-btn" data-info-key="field_protein" title="點擊查看名詞解釋">ⓘ</button>
+                </div>
+                <input type="number" step="0.1" id="protein" class="form-input" value="12.1" required>
+              </div>
+
+              <div class="form-group">
+                <div class="form-label-row">
+                  <label class="form-label" for="fat">總脂肪 (g) *</label>
+                  <button type="button" class="info-btn" data-info-key="field_fat" title="點擊查看名詞解釋">ⓘ</button>
+                </div>
+                <input type="number" step="0.1" id="fat" class="form-input" value="0.7" required>
+              </div>
+
+              <div class="form-group">
+                <div class="form-label-row">
+                  <label class="form-label" for="saturatedFat">飽和脂肪 (g)</label>
+                  <button type="button" class="info-btn" data-info-key="field_sat_fat" title="點擊查看名詞解釋">ⓘ</button>
+                </div>
+                <input type="number" step="0.1" id="saturatedFat" class="form-input" value="0.2">
+              </div>
+
+              <div class="form-group">
+                <div class="form-label-row">
+                  <label class="form-label" for="transFat">反式脂肪 (g)</label>
+                  <button type="button" class="info-btn" data-info-key="field_trans_fat" title="點擊查看名詞解釋">ⓘ</button>
+                </div>
+                <input type="number" step="0.1" id="transFat" class="form-input" value="0.0">
+              </div>
+
+              <div class="form-group">
+                <div class="form-label-row">
+                  <label class="form-label" for="carbs">碳水化合物 (g) *</label>
+                  <button type="button" class="info-btn" data-info-key="field_carbs" title="點擊查看名詞解釋">ⓘ</button>
+                </div>
+                <input type="number" step="0.1" id="carbs" class="form-input" value="75.1" required>
+              </div>
+
+              <div class="form-group">
+                <div class="form-label-row">
+                  <label class="form-label" for="sugar">糖 (g) *</label>
+                  <button type="button" class="info-btn" data-info-key="field_sugar" title="點擊查看名詞解釋">ⓘ</button>
+                </div>
+                <input type="number" step="0.1" id="sugar" class="form-input" value="2.2" required>
+              </div>
+
+              <div class="form-group">
+                <div class="form-label-row">
+                  <label class="form-label" for="sodium">鈉 (mg) *</label>
+                  <button type="button" class="info-btn" data-info-key="field_sodium" title="點擊查看名詞解釋">ⓘ</button>
+                </div>
+                <input type="number" step="1" id="sodium" class="form-input" value="0" required>
+              </div>
+
+              <div class="form-group">
+                <div class="form-label-row">
+                  <label class="form-label" for="fiber">膳食纖維 (g)</label>
+                  <button type="button" class="info-btn" data-info-key="roi_fiber" title="點擊查看名詞解釋">ⓘ</button>
+                </div>
+                <input type="number" step="0.1" id="fiber" class="form-input" placeholder="未標示">
+              </div>
+
+              <div class="form-group">
+                <div class="form-label-row">
+                  <label class="form-label" for="potassium">鉀 (mg)</label>
+                </div>
+                <input type="number" step="1" id="potassium" class="form-input" placeholder="未標示">
+              </div>
+
+              <div class="form-group">
+                <div class="form-label-row">
+                  <label class="form-label" for="calcium">鈣 (mg)</label>
+                </div>
+                <input type="number" step="1" id="calcium" class="form-input" placeholder="未標示">
+              </div>
+
+              <div class="form-group full-width">
+                <div class="form-label-row">
+                  <label class="form-label" for="processingLevel">加工程度 (NOVA)</label>
+                  <button type="button" class="info-btn" data-info-key="radar_processing" title="點擊查看名詞解釋">ⓘ</button>
+                </div>
+                <select id="processingLevel" class="form-select">
+                  <option value="1">Level 1 - 原型天然 / 微加工 (如新鮮蔬果、純燕麥)</option>
+                  <option value="2">Level 2 - 烹飪基礎原料 (如油、糖、麵粉)</option>
+                  <option value="3" selected>Level 3 - 加工食品 (如純杜蘭小麥麵條、起司、豆腐)</option>
+                  <option value="4">Level 4 - 超加工休閒零食 (如洋芋片、可樂、香腸)</option>
+                </select>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- 3. 經典對比案例庫 (直式切換拉霸清單) -->
+      <div class="glass-panel preset-selector-container">
+        <div class="panel-title-row">
+          <h2 class="panel-title" style="margin-bottom:0;"><span>🥗</span> 經典對比範例</h2>
+          <span class="badge badge-blue" style="font-size:0.7rem;">直立滑動清單</span>
+        </div>
+        <p class="section-desc" style="margin-top:6px;">點擊即時載入各類型食物標籤（上下滑動切換）：</p>
+        <div class="preset-vertical-track" id="presetTrack">
+          <!-- 由 JS 動態生成直式卡片按鈕 -->
+        </div>
+      </div>
+
+    </section>
+
+    <!-- 右側：評分結果與視覺化分析面板 -->
+    <section class="results-container">
+      
+      <!-- 總分與等級規格 Card -->
+      <div class="glass-panel score-hero-panel">
+        <div class="score-circle-wrapper">
+          <div class="score-circle" id="scoreCircle">
+            <span class="score-number" id="scoreNumber">70</span>
+            <span class="score-unit">/ 100</span>
+          </div>
+        </div>
+
+        <div class="score-details">
+          <div class="food-title-row">
+            <h2 class="food-display-name" id="displayFoodName">土耳其杜蘭小麥義大利麵</h2>
+            <span class="badge badge-yellow" id="gradeBadge">🟡 良好日常</span>
+            <button type="button" class="info-btn" data-info-key="overall_score" title="查看評分算法說明">ⓘ 評分說明</button>
+          </div>
+          
+          <!-- 資料完整度 (DCI) 條 -->
+          <div class="completeness-bar-container">
+            <div class="completeness-header">
+              <span>資料可信度與完整度 (DCI)</span>
+              <div style="display:flex; align-items:center; gap:6px;">
+                <strong id="completenessText">60%</strong>
+                <button type="button" class="info-btn" data-info-key="dci" title="查看可信度標準">ⓘ</button>
+              </div>
+            </div>
+            <div class="progress-track">
+              <div class="progress-fill" id="completenessFill" style="width: 60%;"></div>
+            </div>
+            <div class="spec-note" id="completenessNote">
+              ℹ️ 基礎8大標示已有60%；未標示膳食纖維/微量元素，系統採用客觀保守模型推估。
+            </div>
+          </div>
+
+          <!-- 分數規格說明 (Rating Standards) -->
+          <div class="score-scale-box">
+            <div class="scale-title">🎯 營養價值分數 (0~100) 等級規格：</div>
+            <div class="scale-items">
+              <span class="scale-tag green">🟢 85-100 優質推薦</span>
+              <span class="scale-tag yellow">🟡 70-84 良好日常</span>
+              <span class="scale-tag orange">🟠 50-69 適量食用</span>
+              <span class="scale-tag red">🔴 0-49 警示少吃</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 🌟 1. 調整位置：情境適配度矩陣（移至五維雷達正上方） -->
+      <div class="glass-panel">
+        <div class="panel-title-row">
+          <h3 class="panel-title" style="margin-bottom:0;">
+            <span>👥</span> 這個食物適合誰？ (情境適配分數)
+          </h3>
+          <button type="button" class="info-btn" data-info-key="persona_general" title="查看情境適配定義">ⓘ 族群說明</button>
+        </div>
+        
+        <p class="section-desc" style="margin-top:6px;">健康沒有絕對標準，同一份食品在不同人生階段或運動目標下評價截然不同：</p>
+        
+        <!-- 情境適配分數規格 -->
+        <div class="score-scale-box" style="margin-bottom:12px;">
+          <div class="scale-title">🎯 情境適配分數規格 (0~100)：</div>
+          <div class="scale-items">
+            <span class="scale-tag green">🟢 ≥85 極佳推薦</span>
+            <span class="scale-tag yellow">🟡 70-84 良好適合</span>
+            <span class="scale-tag orange">🟠 50-69 尚可普通</span>
+            <span class="scale-tag red">🔴 &lt;50 較不推薦</span>
+          </div>
+        </div>
+
+        <div class="persona-grid" id="personaGrid">
+          <!-- 由 JS 動態渲染，包含每個情境的 (i) 按鈕 -->
+        </div>
+      </div>
+
+      <!-- 🌟 2. 五維雷達與 Nutrition ROI 雙欄 -->
+      <div class="visuals-grid">
+        
+        <!-- 五維度雷達圖 -->
+        <div class="glass-panel">
+          <div class="panel-title-row">
+            <h3 class="panel-title" style="margin-bottom:0;"><span>🕸️</span> 營養價值五維雷達</h3>
+            <button type="button" class="info-btn" data-info-key="radar_beneficial" title="查看五維雷達解釋">ⓘ 維度說明</button>
+          </div>
+          
+          <div class="chart-wrapper">
+            <canvas id="radarChart"></canvas>
+          </div>
+          
+          <!-- 雷達圖各軸標準註解 -->
+          <div class="dimension-guide">
+            <div class="guide-item">
+              <strong>有益營養</strong> <button type="button" class="info-btn-mini" data-info-key="radar_beneficial">ⓘ</button>：蛋白質效率、纖維與微量元素密度 (越高越好)
+            </div>
+            <div class="guide-item">
+              <strong>無空熱量</strong> <button type="button" class="info-btn-mini" data-info-key="radar_empty_cal">ⓘ</button>：排除精緻糖與游離純油脂後的有效能量比
+            </div>
+            <div class="guide-item">
+              <strong>低代謝風險</strong> <button type="button" class="info-btn-mini" data-info-key="radar_low_risk">ⓘ</button>：糖、飽和/反式脂肪與鈉之負擔防護
+            </div>
+            <div class="guide-item">
+              <strong>天然加工程度</strong> <button type="button" class="info-btn-mini" data-info-key="radar_processing">ⓘ</button>：NOVA 1~4 級分類 (天然原型最高，超加工最低)
+            </div>
+          </div>
+        </div>
+
+        <!-- Nutrition ROI 投資報酬率 -->
+        <div class="glass-panel">
+          <div class="panel-title-row">
+            <h3 class="panel-title" style="margin-bottom:0;">
+              <span>🧮</span> Nutrition ROI (每 100 kcal 產出)
+            </h3>
+            <button type="button" class="info-btn" data-info-key="roi_protein" title="查看ROI概念">ⓘ ROI說明</button>
+          </div>
+          <p class="section-desc" style="margin-top:6px;">核心問題：「每吃進 100 大卡熱量，為身體買到多少實質營養？」</p>
+          
+          <div class="roi-metrics-list">
+            
+            <!-- 蛋白質效率 -->
+            <div class="roi-card">
+              <div class="roi-card-header">
+                <span class="roi-name">
+                  🥩 蛋白質效率
+                  <button type="button" class="info-btn-mini" data-info-key="roi_protein" title="點擊查看詳細名詞解釋">ⓘ</button>
+                </span>
+                <span class="roi-value highlight" id="roiProtein">3.41 g</span>
+              </div>
+              <div class="roi-spec-explain">
+                <span class="spec-badge">規格</span> ≥6.0g 優秀(高效修復) │ 3.0~5.9g 中等 │ &lt;2.0g 偏低
+              </div>
+            </div>
+
+            <!-- 膳食纖維 -->
+            <div class="roi-card">
+              <div class="roi-card-header">
+                <span class="roi-name">
+                  🌾 膳食纖維產出
+                  <button type="button" class="info-btn-mini" data-info-key="roi_fiber" title="點擊查看詳細名詞解釋">ⓘ</button>
+                </span>
+                <span class="roi-value" id="roiFiber">未標示 (推估)</span>
+              </div>
+              <div class="roi-spec-explain">
+                <span class="spec-badge">規格</span> ≥2.5g 高纖飽足 │ 1.0~2.4g 中等 │ &lt;0.5g 缺乏
+              </div>
+            </div>
+
+            <!-- 游離糖負擔 -->
+            <div class="roi-card">
+              <div class="roi-card-header">
+                <span class="roi-name">
+                  🍬 游離糖負擔
+                  <button type="button" class="info-btn-mini" data-info-key="roi_sugar" title="點擊查看詳細名詞解釋">ⓘ</button>
+                </span>
+                <span class="roi-value" id="roiSugar">0.62 g</span>
+              </div>
+              <div class="roi-spec-explain">
+                <span class="spec-badge">規格</span> &lt;1.5g 極優(安全) │ 2.5g (佔熱量10% WHO上限) │ &gt;5.0g 高風險
+              </div>
+            </div>
+
+            <!-- 鈉負荷 -->
+            <div class="roi-card">
+              <div class="roi-card-header">
+                <span class="roi-name">
+                  🧂 鈉負荷
+                  <button type="button" class="info-btn-mini" data-info-key="roi_sodium" title="點擊查看詳細名詞解釋">ⓘ</button>
+                </span>
+                <span class="roi-value" id="roiSodium">0 mg</span>
+              </div>
+              <div class="roi-spec-explain">
+                <span class="spec-badge">規格</span> &lt;100mg 優良低負擔 │ 100~200mg 普通 │ &gt;200mg 高鈉警示
+              </div>
+            </div>
+
+            <!-- 熱量密度 -->
+            <div class="roi-card">
+              <div class="roi-card-header">
+                <span class="roi-name">
+                  ⚡ 熱量密度
+                  <button type="button" class="info-btn-mini" data-info-key="roi_cal_density" title="點擊查看詳細名詞解釋">ⓘ</button>
+                </span>
+                <span class="roi-value" id="roiCalorieDensity">3.55 kcal/g</span>
+              </div>
+              <div class="roi-spec-explain">
+                <span class="spec-badge">規格</span> &lt;1.5 低熱量密度(高飽足) │ 1.5~3.0 中等 │ &gt;3.0 濃縮高熱量
+              </div>
+            </div>
+
+            <!-- 三大熱量佔比 -->
+            <div class="roi-card">
+              <div class="roi-card-header">
+                <span class="roi-name">
+                  📊 三大營養素實際熱量佔比
+                  <button type="button" class="info-btn-mini" data-info-key="roi_macros" title="點擊查看詳細名詞解釋">ⓘ</button>
+                </span>
+                <span class="roi-value" id="roiMacrosRatio" style="font-size:0.85rem;">蛋 13.6% / 脂 1.8% / 碳 84.6%</span>
+              </div>
+              <div class="roi-spec-explain">
+                <span class="spec-badge">換算</span> 蛋白質 4 kcal/g • 脂肪 9 kcal/g • 碳水 4 kcal/g
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+
+      <!-- AI 智慧點評 -->
+      <div class="glass-panel ai-summary-box">
+        <h3 class="panel-title"><span>💡</span> AI 一句話智慧點評</h3>
+        <div class="summary-headline" id="summaryHeadline">純淨優質的複合碳水基底！零鈉、極低飽和脂肪。</div>
+        <div class="summary-body" id="summaryBody">非常適合作為運動前中後的能量補給；日常正餐食用時，建議搭配優質蛋白質與深色高纖蔬菜。</div>
+        <ul class="summary-bullets" id="summaryHighlights">
+          <!-- 亮點 -->
+        </ul>
+        <div class="warning-alert" id="summaryWarning" style="display:none;"></div>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- 🌟 全局 (i) 資訊解釋彈窗 Modal -->
+  <div class="modal-backdrop" id="infoModalBackdrop" style="display: none;">
+    <div class="info-modal-card">
+      <div class="modal-header">
+        <div class="modal-title-box">
+          <h3 class="modal-title" id="modalTitle">項目名稱</h3>
+          <span class="modal-unit" id="modalUnit">單位: g</span>
+        </div>
+        <button type="button" class="btn-modal-close" id="modalCloseBtn">✕</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="modal-summary-box" id="modalSummary">
+          核心摘要文字...
+        </div>
+
+        <div class="modal-section">
+          <h4 class="modal-sec-title">📖 名詞定義與生理重要性</h4>
+          <p class="modal-sec-content" id="modalDefinition">詳細內容說明...</p>
+        </div>
+
+        <div class="modal-section">
+          <h4 class="modal-sec-title">🎯 評分與科學標準門檻</h4>
+          <div class="modal-scale-box" id="modalScale">門檻數值說明...</div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn-modal-action" id="modalConfirmBtn">了解，關閉視窗</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 引入應用程式主要邏輯模組 -->
+  <script type="module" src="js/app.js"></script>
+
+  <!-- ── PWA Service Worker 註冊 ── -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js')
+          .then(reg => console.log('[PWA] Service Worker registered:', reg.scope))
+          .catch(err => console.warn('[PWA] Service Worker registration failed:', err));
+      });
+    }
+  </script>
+</body>
+</html>

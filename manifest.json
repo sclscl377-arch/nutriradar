@@ -1,0 +1,42 @@
+{
+  "name": "NutriRadar - 食物營養評分",
+  "short_name": "NutriRadar",
+  "description": "拍照即測！食物營養價值與 ROI 評估系統",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#090d16",
+  "theme_color": "#10b981",
+  "lang": "zh-TW",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "categories": ["health", "food", "utilities"],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "拍照測評",
+      "short_name": "拍照",
+      "description": "立即開啟相機掃描食品標籤",
+      "url": "/?action=camera",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

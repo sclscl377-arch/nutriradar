@@ -1,0 +1,536 @@
+import { PRESET_FOODS } from './data/preset_foods.js';
+import { NUTRITION_GLOSSARY } from './data/nutrition_glossary.js';
+import { analyzeFoodNutrition } from './engine/scoring_engine.js';
+import { processNutritionImage } from './engine/ocr_engine.js';
+
+let radarChart = null;
+
+document.addEventListener('DOMContentLoaded', () => {
+  initPresets();
+  initRadarChart();
+  initCameraAndOCR();
+  initCollapsibleForm();
+  initFormInputs();
+  initInfoModal();
+  
+  // 初始載入第一筆（使用者照片案例）
+  loadFoodData(PRESET_FOODS[0]);
+});
+
+// 1. 初始化經典範例直式清單 (直向滑動拉霸)
+function initPresets() {
+  const track = document.getElementById('presetTrack');
+  if (!track) return;
+  track.innerHTML = '';
+
+  PRESET_FOODS.forEach((food, index) => {
+    const card = document.createElement('button');
+    card.type = 'button';
+    card.className = `preset-card ${index === 0 ? 'active' : ''}`;
+    card.innerHTML = `
+      <div class="preset-card-left">
+        <span class="preset-card-icon">${food.icon || '🥗'}</span>
+        <div class="preset-card-text">
+          <div class="preset-card-name">${food.name}</div>
+          <div class="preset-card-meta">${food.category} • ${food.calories} kcal</div>
+        </div>
+      </div>
+      <div class="preset-card-badge">${food.tag || '查看'}</div>
+    `;
+
+    card.addEventListener('click', () => {
+      document.querySelectorAll('.preset-card').forEach(p => p.classList.remove('active'));
+      card.classList.add('active');
+      
+      // 隱藏自訂照片預覽，切回範例模式
+      document.getElementById('previewContainer').style.display = 'none';
+      document.getElementById('cameraPrompt').style.display = 'block';
+      const ocrSuccessBar = document.getElementById('ocrSuccessBar');
+      ocrSuccessBar.style.display = 'none';
+      ocrSuccessBar.className = 'ocr-success-banner';
+
+      loadFoodData(food);
+    });
+    track.appendChild(card);
+  });
+}
+
+// 2. 初始化拍照與真實 OCR 辨識
+function initCameraAndOCR() {
+  const dropzone = document.getElementById('cameraDropzone');
+  const fileInput = document.getElementById('imageFileInput');
+  const quickBtn = document.getElementById('quickCameraBtn');
+  const rephotoBtn = document.getElementById('rephotoBtn');
+
+  const triggerUpload = () => {
+    fileInput.value = '';
+    fileInput.click();
+  };
+
+  dropzone.addEventListener('click', (e) => {
+    if (e.target !== rephotoBtn && !e.target.closest('#rephotoBtn')) {
+      triggerUpload();
+    }
+  });
+
+  if (quickBtn) {
+    quickBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      triggerUpload();
+    });
+  }
+
+  if (rephotoBtn) {
+    rephotoBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      triggerUpload();
+    });
+  }
+
+  // 拖曳上傳支援
+  dropzone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropzone.style.borderColor = '#10b981';
+  });
+  dropzone.addEventListener('dragleave', () => {
+    dropzone.style.borderColor = '';
+  });
+  dropzone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropzone.style.borderColor = '';
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleImageSelected(e.dataTransfer.files[0]);
+    }
+  });
+
+  fileInput.addEventListener('change', (e) => {
+    if (e.target.files && e.target.files[0]) {
+      handleImageSelected(e.target.files[0]);
+    }
+  });
+}
+
+// 處理圖片選擇與 OCR 提取
+async function handleImageSelected(file) {
+  const promptEl = document.getElementById('cameraPrompt');
+  const previewContainer = document.getElementById('previewContainer');
+  const imagePreview = document.getElementById('imagePreview');
+  const ocrOverlay = document.getElementById('ocrOverlay');
+  const ocrStatusText = document.getElementById('ocrStatusText');
+  const ocrProgressFill = document.getElementById('ocrProgressFill');
+  const ocrSuccessBar = document.getElementById('ocrSuccessBar');
+  const ocrStatusMsg = document.getElementById('ocrStatusMsg');
+
+  // 1. 清空所有舊數據，絕不殘留舊食品數值
+  clearFormValues();
+
+  // 2. 切換為預覽與辨識載入狀態
+  promptEl.style.display = 'none';
+  previewContainer.style.display = 'block';
+  ocrOverlay.style.display = 'flex';
+  ocrSuccessBar.style.display = 'none';
+  ocrSuccessBar.className = 'ocr-success-banner';
+
+  // 3. 取消預設範例的選中態
+  document.querySelectorAll('.preset-card').forEach(p => p.classList.remove('active'));
+
+  // 4. 即時顯示新圖片預覽
+  const tempUrl = URL.createObjectURL(file);
+  imagePreview.src = tempUrl;
+
+  const fileName = file.name.replace(/\.[^/.]+$/, "");
+  const displayName = `拍照標籤 (${fileName})`;
+  document.getElementById('foodName').value = displayName;
+  document.getElementById('displayFoodName').textContent = displayName;
+
+  // 5. 執行真實影像增強與 OCR 表格解析
+  const result = await processNutritionImage(file, (progress, statusText) => {
+    ocrProgressFill.style.width = `${progress}%`;
+    ocrStatusText.textContent = statusText;
+  });
+
+  if (result.imageSrc) {
+    imagePreview.src = result.imageSrc;
+  }
+  ocrOverlay.style.display = 'none';
+  ocrSuccessBar.style.display = 'flex';
+
+  const extracted = result.data;
+
+  // 6. 依真實辨識結果處理：成功填入真實值；部分辨識時顯示「自動填入 X 項數值，缺 Y 項數值」
+  const mandatoryFields = [
+    { key: 'calories', name: '熱量' },
+    { key: 'protein', name: '蛋白質' },
+    { key: 'fat', name: '總脂肪' },
+    { key: 'saturatedFat', name: '飽和脂肪' },
+    { key: 'transFat', name: '反式脂肪' },
+    { key: 'carbs', name: '碳水化合物' },
+    { key: 'sugar', name: '糖' },
+    { key: 'sodium', name: '鈉' }
+  ];
+
+  if (extracted && extracted.hasParsedAny) {
+    const parsedMandatory = mandatoryFields.filter(f => extracted[f.key] !== null);
+    const missingMandatory = mandatoryFields.filter(f => extracted[f.key] === null);
+
+    const parsedCount = parsedMandatory.length;
+    const missingCount = missingMandatory.length;
+    const missingNames = missingMandatory.map(f => f.name).join('、');
+
+    if (missingCount === 0) {
+      ocrSuccessBar.className = 'ocr-success-banner';
+      ocrStatusMsg.innerHTML = `✅ 標籤辨識完全成功！已自動填入全部 <strong>${parsedCount}</strong> 項基礎數值。`;
+    } else {
+      ocrSuccessBar.className = 'ocr-success-banner warning-state';
+      ocrStatusMsg.innerHTML = `⚠️ 標籤辨識部分成功：自動填入 <strong>${parsedCount}</strong> 項數值，缺 <strong>${missingCount}</strong> 項數值（${missingNames}），請於下方補齊！`;
+    }
+
+    // 僅填入實際辨識到的數值，未辨識到的欄位保留空白
+    document.getElementById('calories').value = extracted.calories !== null ? extracted.calories : '';
+    document.getElementById('protein').value = extracted.protein !== null ? extracted.protein : '';
+    document.getElementById('fat').value = extracted.fat !== null ? extracted.fat : '';
+    document.getElementById('saturatedFat').value = extracted.saturatedFat !== null ? extracted.saturatedFat : '';
+    document.getElementById('transFat').value = extracted.transFat !== null ? extracted.transFat : '';
+    document.getElementById('carbs').value = extracted.carbs !== null ? extracted.carbs : '';
+    document.getElementById('sugar').value = extracted.sugar !== null ? extracted.sugar : '';
+    document.getElementById('sodium').value = extracted.sodium !== null ? extracted.sodium : '';
+    document.getElementById('fiber').value = extracted.fiber !== null ? extracted.fiber : '';
+    document.getElementById('potassium').value = extracted.potassium !== null ? extracted.potassium : '';
+    document.getElementById('calcium').value = extracted.calcium !== null ? extracted.calcium : '';
+  } else {
+    // 辨識失敗：顯示具體錯誤訊息，清空表單，要求使用者手動輸入
+    ocrSuccessBar.className = 'ocr-success-banner error-state';
+    const errDetail = result.error ? `（${result.error}）` : '（可能因曲面反光或字體模糊）';
+    ocrStatusMsg.innerHTML = `❌ 標籤讀取失敗 ${errDetail}：未讀取到數值，缺 <strong>8</strong> 項基礎數值，請於下方手動輸入！`;
+    console.error('[NutriRadar] OCR 失敗詳情:', result.error, result);
+    clearFormValues();
+  }
+
+  // 7. 自動展開數值明細面板，方便使用者直接檢查或補填
+  const body = document.getElementById('collapsibleBody');
+  const icon = document.getElementById('collapseIcon');
+  if (body) {
+    body.style.display = 'block';
+    if (icon) icon.textContent = '▲';
+  }
+
+  // 8. 即時觸發計算（若全空則顯示待輸入狀態）
+  triggerRecalculate();
+}
+
+// 清空表單欄位
+function clearFormValues() {
+  document.getElementById('calories').value = '';
+  document.getElementById('protein').value = '';
+  document.getElementById('fat').value = '';
+  document.getElementById('saturatedFat').value = '';
+  document.getElementById('transFat').value = '';
+  document.getElementById('carbs').value = '';
+  document.getElementById('sugar').value = '';
+  document.getElementById('sodium').value = '';
+  document.getElementById('fiber').value = '';
+  document.getElementById('potassium').value = '';
+  document.getElementById('calcium').value = '';
+}
+
+// 3. 折疊面板初始化
+function initCollapsibleForm() {
+  const header = document.getElementById('formToggleHeader');
+  const body = document.getElementById('collapsibleBody');
+  const icon = document.getElementById('collapseIcon');
+  const linkBtn = document.getElementById('toggleFormBtn');
+
+  const toggle = () => {
+    const isClosed = body.style.display === 'none';
+    body.style.display = isClosed ? 'block' : 'none';
+    icon.textContent = isClosed ? '▲' : '▼';
+  };
+
+  header.addEventListener('click', toggle);
+  if (linkBtn) {
+    linkBtn.addEventListener('click', () => {
+      body.style.display = 'block';
+      icon.textContent = '▲';
+      body.scrollIntoView({ behavior: 'smooth' });
+    });
+  }
+}
+
+// 4. 表單輸入即時監聽
+function initFormInputs() {
+  const form = document.getElementById('nutritionForm');
+  const inputs = form.querySelectorAll('input, select');
+  inputs.forEach(input => {
+    input.addEventListener('input', () => {
+      triggerRecalculate();
+    });
+  });
+}
+
+// 5. 初始化 Chart.js 雷達圖
+function initRadarChart() {
+  const ctx = document.getElementById('radarChart').getContext('2d');
+
+  radarChart = new Chart(ctx, {
+    type: 'radar',
+    data: {
+      labels: [
+        '有益營養密度',
+        '無空熱量優勢',
+        '低代謝風險',
+        '天然加工程度',
+        '全能適配度'
+      ],
+      datasets: [{
+        label: '食物五維指標',
+        data: [70, 85, 95, 72, 75],
+        backgroundColor: 'rgba(16, 185, 129, 0.25)',
+        borderColor: '#10b981',
+        borderWidth: 2,
+        pointBackgroundColor: '#10b981',
+        pointBorderColor: '#fff',
+        pointRadius: 4
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        r: {
+          min: 0,
+          max: 100,
+          ticks: {
+            stepSize: 20,
+            display: false,
+            backdropColor: 'transparent'
+          },
+          grid: {
+            color: 'rgba(255, 255, 255, 0.08)'
+          },
+          angleLines: {
+            color: 'rgba(255, 255, 255, 0.1)'
+          },
+          pointLabels: {
+            color: '#9ca3af',
+            font: {
+              size: 11,
+              weight: 'bold',
+              family: "'Plus Jakarta Sans', 'Noto Sans TC'"
+            }
+          }
+        }
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: 'rgba(17, 24, 39, 0.92)',
+          titleColor: '#10b981',
+          bodyColor: '#f9fafb',
+          borderColor: 'rgba(16, 185, 129, 0.3)',
+          borderWidth: 1,
+          padding: 10,
+          callbacks: {
+            label: function(context) {
+              return ` 指標評分: ${context.raw} / 100`;
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+// 6. 載入食品資料到表單
+function loadFoodData(food) {
+  document.getElementById('foodName').value = food.name || '';
+  document.getElementById('calories').value = food.calories !== undefined && food.calories !== null ? food.calories : '';
+  document.getElementById('protein').value = food.protein !== undefined && food.protein !== null ? food.protein : '';
+  document.getElementById('fat').value = food.fat !== undefined && food.fat !== null ? food.fat : '';
+  document.getElementById('saturatedFat').value = food.saturatedFat !== undefined && food.saturatedFat !== null ? food.saturatedFat : '';
+  document.getElementById('transFat').value = food.transFat !== undefined && food.transFat !== null ? food.transFat : '';
+  document.getElementById('carbs').value = food.carbs !== undefined && food.carbs !== null ? food.carbs : '';
+  document.getElementById('sugar').value = food.sugar !== undefined && food.sugar !== null ? food.sugar : '';
+  document.getElementById('sodium').value = food.sodium !== undefined && food.sodium !== null ? food.sodium : '';
+  document.getElementById('fiber').value = food.fiber !== undefined && food.fiber !== null ? food.fiber : '';
+  document.getElementById('potassium').value = food.potassium !== undefined && food.potassium !== null ? food.potassium : '';
+  document.getElementById('calcium').value = food.calcium !== undefined && food.calcium !== null ? food.calcium : '';
+  document.getElementById('processingLevel').value = food.processingLevel || 3;
+
+  triggerRecalculate();
+}
+
+// 7. 從表單讀取並觸發計算
+function triggerRecalculate() {
+  const foodData = {
+    name: document.getElementById('foodName').value || '自訂食品',
+    calories: document.getElementById('calories').value,
+    protein: document.getElementById('protein').value,
+    fat: document.getElementById('fat').value,
+    saturatedFat: document.getElementById('saturatedFat').value,
+    transFat: document.getElementById('transFat').value,
+    carbs: document.getElementById('carbs').value,
+    sugar: document.getElementById('sugar').value,
+    sodium: document.getElementById('sodium').value,
+    fiber: document.getElementById('fiber').value,
+    potassium: document.getElementById('potassium').value,
+    calcium: document.getElementById('calcium').value,
+    processingLevel: document.getElementById('processingLevel').value
+  };
+
+  const results = analyzeFoodNutrition(foodData);
+  updateUI(foodData.name, results);
+}
+
+// 8. 全面更新 UI
+function updateUI(foodName, results) {
+  // A. 食品名稱與總分
+  document.getElementById('displayFoodName').textContent = foodName;
+  const scoreNum = document.getElementById('scoreNumber');
+  scoreNum.textContent = results.overallScore;
+
+  const scoreCircle = document.getElementById('scoreCircle');
+  scoreCircle.style.borderColor = results.grade.color;
+  scoreCircle.style.boxShadow = `0 0 24px ${results.grade.color}40`;
+
+  const gradeBadge = document.getElementById('gradeBadge');
+  gradeBadge.className = `badge ${results.grade.badgeClass}`;
+  gradeBadge.textContent = `${results.grade.tag} ${results.grade.text}`;
+
+  // B. 資料完整度 (DCI)
+  document.getElementById('completenessText').textContent = `${results.completenessScore}%`;
+  document.getElementById('completenessFill').style.width = `${results.completenessScore}%`;
+  
+  const compNote = document.getElementById('completenessNote');
+  if (results.isEmpty) {
+    compNote.textContent = "ℹ️ 尚未輸入數值，請於左側數值明細輸入包裝標示。";
+  } else if (results.completenessScore >= 90) {
+    compNote.textContent = "✅ 標示極為完整（含膳食纖維與微量礦物質），評分具備高度可信度。";
+  } else {
+    compNote.textContent = `ℹ️ 基礎標示完整度 ${results.completenessScore}%；未標示 ${results.missingFields.join('、')}，系統採用客觀保守模型推估。`;
+  }
+
+  // C. 更新五維雷達圖
+  if (radarChart) {
+    const rm = results.radarMetrics;
+    radarChart.data.datasets[0].data = [
+      rm.beneficialDensity,
+      rm.emptyCalorieScore,
+      rm.excessRiskScore,
+      rm.processingScore,
+      rm.generalFit
+    ];
+    radarChart.data.datasets[0].borderColor = results.grade.color;
+    radarChart.data.datasets[0].backgroundColor = `${results.grade.color}30`;
+    radarChart.data.datasets[0].pointBackgroundColor = results.grade.color;
+    radarChart.update();
+  }
+
+  // D. 更新 Nutrition ROI
+  const roi = results.nutritionRoi;
+  document.getElementById('roiProtein').textContent = results.isEmpty ? '--' : `${roi.proteinPer100Kcal} g`;
+  document.getElementById('roiFiber').textContent = results.isEmpty ? '--' : (roi.fiberPer100Kcal !== null ? `${roi.fiberPer100Kcal} g` : '未標示 (推估)');
+  document.getElementById('roiSugar').textContent = results.isEmpty ? '--' : `${roi.sugarPer100Kcal} g`;
+  document.getElementById('roiSodium').textContent = results.isEmpty ? '--' : `${roi.sodiumPer100Kcal} mg`;
+  document.getElementById('roiCalorieDensity').textContent = results.isEmpty ? '--' : `${roi.calorieDensity} kcal/g`;
+  
+  const m = roi.macrosRatio;
+  document.getElementById('roiMacrosRatio').textContent = results.isEmpty ? '--' : `蛋 ${m.proteinPct}% / 脂 ${m.fatPct}% / 碳 ${m.carbsPct}%`;
+
+  // E. 🌟 更新族群適配度矩陣 (包含 (i) 按鈕)
+  const personaGrid = document.getElementById('personaGrid');
+  personaGrid.innerHTML = '';
+  
+  const personaKeyMap = {
+    workout: 'persona_workout',
+    weightLoss: 'persona_weightloss',
+    bloodSugar: 'persona_bloodsugar',
+    general: 'persona_general',
+    youth: 'persona_youth'
+  };
+
+  Object.entries(results.personaFit).forEach(([key, p]) => {
+    const card = document.createElement('div');
+    card.className = 'persona-card';
+    const infoKey = personaKeyMap[key] || 'persona_general';
+    card.innerHTML = `
+      <div class="persona-header-row">
+        <span class="persona-name">${p.label}</span>
+        <button type="button" class="info-btn-mini" data-info-key="${infoKey}" title="點擊查看族群說明">ⓘ</button>
+      </div>
+      <div class="persona-score" style="color: ${p.score >= 80 ? '#34d399' : p.score >= 60 ? '#fbbf24' : '#f87171'}">${results.isEmpty ? '--' : p.score} <small style="font-size:0.7rem;color:#9ca3af;">分</small></div>
+    `;
+    personaGrid.appendChild(card);
+  });
+
+  // F. 更新 AI 一句話智慧點評
+  document.getElementById('summaryHeadline').textContent = results.insights.summary;
+  document.getElementById('summaryBody').textContent = results.insights.suggestion;
+
+  const highlightsList = document.getElementById('summaryHighlights');
+  highlightsList.innerHTML = '';
+  results.insights.highlights.forEach(h => {
+    const li = document.createElement('li');
+    li.textContent = h;
+    highlightsList.appendChild(li);
+  });
+
+  const warningBox = document.getElementById('summaryWarning');
+  if (results.insights.warning) {
+    warningBox.textContent = results.insights.warning;
+    warningBox.style.display = 'block';
+  } else {
+    warningBox.style.display = 'none';
+  }
+}
+
+// 9. 🌟 全局 (i) 資訊解釋彈窗系統
+function initInfoModal() {
+  const modalBackdrop = document.getElementById('infoModalBackdrop');
+  const closeBtn = document.getElementById('modalCloseBtn');
+  const confirmBtn = document.getElementById('modalConfirmBtn');
+  
+  const titleEl = document.getElementById('modalTitle');
+  const unitEl = document.getElementById('modalUnit');
+  const summaryEl = document.getElementById('modalSummary');
+  const defEl = document.getElementById('modalDefinition');
+  const scaleEl = document.getElementById('modalScale');
+
+  const closeModal = () => {
+    modalBackdrop.style.display = 'none';
+  };
+
+  const openModal = (key) => {
+    const info = NUTRITION_GLOSSARY[key];
+    if (!info) return;
+
+    titleEl.textContent = info.title;
+    unitEl.textContent = `單位 / 標示: ${info.unit}`;
+    summaryEl.textContent = info.summary;
+    defEl.textContent = info.definition;
+    scaleEl.textContent = info.scale;
+
+    modalBackdrop.style.display = 'flex';
+  };
+
+  // 事件代理：監聽全畫面所有 data-info-key 點擊
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-info-key]');
+    if (btn) {
+      e.stopPropagation();
+      const key = btn.getAttribute('data-info-key');
+      openModal(key);
+    }
+  });
+
+  if (closeBtn) closeBtn.addEventListener('click', closeModal);
+  if (confirmBtn) confirmBtn.addEventListener('click', closeModal);
+  if (modalBackdrop) {
+    modalBackdrop.addEventListener('click', (e) => {
+      if (e.target === modalBackdrop) closeModal();
+    });
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeModal();
+  });
+}
