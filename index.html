@@ -23,7 +23,7 @@
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
   <link rel="icon" type="image/png" sizes="512x512" href="icons/icon-512.png">
 
-  <link rel="stylesheet" href="styles/main.css?v=3.2">
+  <link rel="stylesheet" href="styles/main.css?v=3.3">
 
   <!-- 引入 Chart.js (雷達圖) -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -44,6 +44,9 @@
     <div class="header-action">
       <button id="quickCameraBtn" class="btn-camera-header" type="button">
         <span>📸 拍照測評</span>
+      </button>
+      <button id="fontScaleBtn" class="btn-refresh-header" type="button" title="長輩友善：切換字體大小 (標準 / 大字 / 特大)">
+        <span id="fontScaleLabel">🔤 標準</span>
       </button>
       <button id="apiKeyBtn" class="btn-refresh-header" type="button" title="設定 Gemini API Key">
         <span>⚙️</span>
@@ -109,6 +112,21 @@
             <button type="button" class="sample-chip" data-sample="oats">🌾 純大燕麥片</button>
             <button type="button" class="sample-chip" data-sample="cola">🥤 經典可樂</button>
           </div>
+        </div>
+      </div>
+
+      <!-- 拍照測評歷史紀錄 (方便長輩/使用者隨時找回拍過的照片與數據) -->
+      <div class="glass-panel scan-history-panel" id="scanHistoryPanel" style="display: none;">
+        <div class="panel-title-row" style="display:flex; justify-content:space-between; align-items:center;">
+          <h2 class="panel-title" style="margin-bottom:0; font-size:1.05rem;">
+            <span>📜</span> 拍照測評歷史
+            <span class="badge badge-green" id="historyCountBadge" style="font-size:0.7rem; margin-left:6px;">0 筆</span>
+          </h2>
+          <button type="button" class="btn-text-link" id="clearHistoryBtn" style="color:var(--text-dim); font-size:0.8rem; cursor:pointer;">清空歷史</button>
+        </div>
+        <p class="section-desc" style="margin-top:6px; margin-bottom:10px;">點擊直接回顧之前拍過的食品照片與評分數據：</p>
+        <div class="history-scroll-track" id="historyTrack">
+          <!-- 動態插入歷史卡片 -->
         </div>
       </div>
 
@@ -272,6 +290,21 @@
             <div class="spec-note" id="completenessNote">
               ℹ️ 基礎8大標示已有60%；未標示膳食纖維/微量元素，系統採用客觀保守模型推估。
             </div>
+          </div>
+
+          <!-- 💡 AI 一句話智慧點評 (移至 DCI 正下方，方便長輩與使用者第一時間閱讀) -->
+          <div class="ai-summary-box hero-ai-summary" id="heroAiSummaryBox">
+            <div class="panel-title-row" style="margin-bottom:6px;">
+              <h3 class="panel-title" style="font-size:1.05rem; margin-bottom:0;">
+                <span>💡</span> AI 一句話智慧點評
+              </h3>
+            </div>
+            <div class="summary-headline" id="summaryHeadline">純淨優質的複合碳水基底！零鈉、極低飽和脂肪。</div>
+            <div class="summary-body" id="summaryBody">非常適合作為運動前中後的能量補給；日常正餐食用時，建議搭配優質蛋白質與深色高纖蔬菜。</div>
+            <ul class="summary-bullets" id="summaryHighlights">
+              <!-- 亮點 -->
+            </ul>
+            <div class="warning-alert" id="summaryWarning" style="display:none;"></div>
           </div>
 
           <!-- 分數規格說明 (Rating Standards) -->
@@ -446,17 +479,6 @@
 
       </div>
 
-      <!-- AI 智慧點評 -->
-      <div class="glass-panel ai-summary-box">
-        <h3 class="panel-title"><span>💡</span> AI 一句話智慧點評</h3>
-        <div class="summary-headline" id="summaryHeadline">純淨優質的複合碳水基底！零鈉、極低飽和脂肪。</div>
-        <div class="summary-body" id="summaryBody">非常適合作為運動前中後的能量補給；日常正餐食用時，建議搭配優質蛋白質與深色高纖蔬菜。</div>
-        <ul class="summary-bullets" id="summaryHighlights">
-          <!-- 亮點 -->
-        </ul>
-        <div class="warning-alert" id="summaryWarning" style="display:none;"></div>
-      </div>
-
     </section>
     
     <!-- 經典對比案例庫 (置於最下方) -->
@@ -538,7 +560,7 @@
   </div>
 
   <!-- 引入應用程式主要邏輯模組 -->
-  <script type="module" src="js/app.js?v=3.2"></script>
+  <script type="module" src="js/app.js?v=3.3"></script>
 
   <!-- ── PWA Service Worker 註冊與強制更新機制 ── -->
   <script>

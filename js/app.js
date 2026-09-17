@@ -6,6 +6,7 @@ import { processNutritionImage } from './engine/ocr_engine.js';
 let radarChart = null;
 
 document.addEventListener('DOMContentLoaded', () => {
+  initFontScaler();
   initPresets();
   initRadarChart();
   initCameraAndOCR();
@@ -13,6 +14,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initFormInputs();
   initInfoModal();
   initApiKeyModal();
+  initScanHistory();
   
   // 初始載入第一筆（使用者照片案例）
   loadFoodData(PRESET_FOODS[0]);
@@ -217,6 +219,12 @@ async function handleImageSelected(file) {
 
   // 8. 即時觸發計算（若全空則顯示待輸入狀態）
   triggerRecalculate();
+
+  // 9. 拍照辨識成功時，自動存入歷史紀錄
+  if (extracted && extracted.hasParsedAny) {
+    const finalName = (extracted.foodName && extracted.foodName.trim()) ? extracted.foodName.trim() : displayName;
+    saveScanHistoryRecord(finalName, result.imageSrc);
+  }
 }
 
 // 清空表單欄位
@@ -360,10 +368,9 @@ function loadFoodData(food) {
   triggerRecalculate();
 }
 
-// 7. 從表單讀取並觸發計算
-function triggerRecalculate() {
-  const foodData = {
-    name: document.getElementById('foodName').value || '自訂食品',
+// 讀取當前表單數值
+function getFormData() {
+  return {
     calories: document.getElementById('calories').value,
     protein: document.getElementById('protein').value,
     fat: document.getElementById('fat').value,
@@ -376,6 +383,14 @@ function triggerRecalculate() {
     potassium: document.getElementById('potassium').value,
     calcium: document.getElementById('calcium').value,
     processingLevel: document.getElementById('processingLevel').value
+  };
+}
+
+// 7. 從表單讀取並觸發計算
+function triggerRecalculate() {
+  const foodData = {
+    name: document.getElementById('foodName').value || '自訂食品',
+    ...getFormData()
   };
 
   const results = analyzeFoodNutrition(foodData);
@@ -624,5 +639,201 @@ function initApiKeyModal() {
   // 監聽外部自動觸發事件（如辨識時未設定金鑰）
   window.addEventListener('nutriradar:open-apikey-modal', () => {
     openModal();
+  });
+}
+
+// 8. 🔤 長輩友善：字體大小縮放控制 (標準 / 大字 / 特大)
+function initFontScaler() {
+  const btn = document.getElementById('fontScaleBtn');
+  const label = document.getElementById('fontScaleLabel');
+  if (!btn || !label) return;
+
+  const MODES = ['normal', 'large', 'xlarge'];
+  const MODE_LABELS = {
+    normal: '🔤 標準',
+    large: '🔤 大字',
+    xlarge: '🔤 特大'
+  };
+
+  let currentMode = localStorage.getItem('nutriradar_font_scale') || 'normal';
+  if (!MODES.includes(currentMode)) currentMode = 'normal';
+
+  const applyMode = (mode) => {
+    currentMode = mode;
+    localStorage.setItem('nutriradar_font_scale', mode);
+    if (mode === 'normal') {
+      document.documentElement.removeAttribute('data-font-size');
+    } else {
+      document.documentElement.setAttribute('data-font-size', mode);
+    }
+    label.textContent = MODE_LABELS[mode];
+  };
+
+  // 初始化套用
+  applyMode(currentMode);
+
+  // 點擊循環切換：標準 -> 大字 -> 特大 -> 標準
+  btn.addEventListener('click', () => {
+    const nextIdx = (MODES.indexOf(currentMode) + 1) % MODES.length;
+    applyMode(MODES[nextIdx]);
+  });
+}
+
+// 9. 📜 拍照測評歷史紀錄管理 (LocalStorage 輕量縮圖保存)
+const HISTORY_STORAGE_KEY = 'nutriradar_scan_history';
+
+function initScanHistory() {
+  const clearBtn = document.getElementById('clearHistoryBtn');
+  if (clearBtn) {
+    clearBtn.addEventListener('click', () => {
+      if (confirm('確定要清空所有拍照測評歷史紀錄嗎？')) {
+        localStorage.removeItem(HISTORY_STORAGE_KEY);
+        renderScanHistory();
+      }
+    });
+  }
+  renderScanHistory();
+}
+
+function getScanHistory() {
+  try {
+    const raw = localStorage.getItem(HISTORY_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+async function saveScanHistoryRecord(foodName, imageSrc) {
+  try {
+    const history = getScanHistory();
+    const currentData = getFormData();
+    const thumb = await createThumbnail(imageSrc);
+
+    // 取得當前總分與等級標籤
+    const scoreText = document.getElementById('scoreNumber')?.textContent || '--';
+    const gradeBadgeText = document.getElementById('gradeBadge')?.textContent || '';
+
+    const newRecord = {
+      id: Date.now(),
+      name: foodName,
+      timeStr: new Date().toLocaleDateString('zh-TW', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }),
+      score: scoreText,
+      gradeBadge: gradeBadgeText,
+      thumb: thumb,
+      data: currentData
+    };
+
+    // 避免名稱與數值完全重複，若有同名項目先過濾移至最前
+    const filtered = history.filter(item => item.name !== newRecord.name);
+    filtered.unshift(newRecord);
+
+    // 最多保存 25 筆歷史紀錄
+    const trimmed = filtered.slice(0, 25);
+    localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(trimmed));
+    renderScanHistory(newRecord.id);
+  } catch (err) {
+    console.warn('[NutriRadar] 儲存歷史紀錄失敗:', err);
+  }
+}
+
+function renderScanHistory(activeId = null) {
+  const panel = document.getElementById('scanHistoryPanel');
+  const track = document.getElementById('historyTrack');
+  const countBadge = document.getElementById('historyCountBadge');
+  if (!panel || !track) return;
+
+  const history = getScanHistory();
+  if (!history || history.length === 0) {
+    panel.style.display = 'none';
+    track.innerHTML = '';
+    return;
+  }
+
+  panel.style.display = 'block';
+  if (countBadge) countBadge.textContent = `${history.length} 筆`;
+  track.innerHTML = '';
+
+  history.forEach(item => {
+    const card = document.createElement('div');
+    card.className = `history-card ${activeId === item.id ? 'active' : ''}`;
+    card.title = `點擊還原數據與照片：${item.name}`;
+
+    const thumbHtml = item.thumb
+      ? `<img class="history-thumb" src="${item.thumb}" alt="${item.name}">`
+      : `<div class="history-thumb-placeholder">📷</div>`;
+
+    card.innerHTML = `
+      <div class="history-thumb-wrap">
+        ${thumbHtml}
+      </div>
+      <div class="history-card-name">${item.name}</div>
+      <div class="history-card-meta">
+        <span>${item.timeStr}</span>
+        <span class="history-card-score">${item.score}分</span>
+      </div>
+    `;
+
+    card.addEventListener('click', () => {
+      // 標記選中態
+      document.querySelectorAll('.history-card').forEach(c => c.classList.remove('active'));
+      card.classList.add('active');
+      document.querySelectorAll('.preset-card').forEach(p => p.classList.remove('active'));
+
+      // 還原照片預覽（若有縮圖）
+      const promptEl = document.getElementById('cameraPrompt');
+      const previewContainer = document.getElementById('previewContainer');
+      const imagePreview = document.getElementById('imagePreview');
+      if (item.thumb) {
+        promptEl.style.display = 'none';
+        previewContainer.style.display = 'block';
+        imagePreview.src = item.thumb;
+      }
+
+      // 還原表單數值
+      loadFoodData({ ...item.data, name: item.name });
+
+      // 提示狀態條
+      const ocrSuccessBar = document.getElementById('ocrSuccessBar');
+      const ocrStatusMsg = document.getElementById('ocrStatusMsg');
+      if (ocrSuccessBar && ocrStatusMsg) {
+        ocrSuccessBar.style.display = 'flex';
+        ocrSuccessBar.className = 'ocr-success-banner';
+        ocrStatusMsg.innerHTML = `📜 已成功載入拍照歷史：<strong>${item.name}</strong>（${item.timeStr} 測評，得分 ${item.score} 分）`;
+      }
+    });
+
+    track.appendChild(card);
+  });
+}
+
+// 產生超輕量縮圖 (寬高最大 140px，體積約 3~5KB，避免擠爆 localStorage)
+function createThumbnail(imageSrc, maxWidth = 140, maxHeight = 140) {
+  return new Promise((resolve) => {
+    if (!imageSrc) return resolve('');
+    const img = new Image();
+    img.onload = () => {
+      let width = img.width;
+      let height = img.height;
+      if (width > height) {
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        }
+      } else {
+        if (height > maxHeight) {
+          width = Math.round((width * maxHeight) / height);
+          height = maxHeight;
+        }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL('image/jpeg', 0.65));
+    };
+    img.onerror = () => resolve('');
+    img.src = imageSrc;
   });
 }
