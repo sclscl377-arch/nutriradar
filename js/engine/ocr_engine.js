@@ -64,7 +64,10 @@ export async function processNutritionImage(imageFile, onProgress = () => {}) {
       const { apiKey, model } = await getGeminiConfig();
 
       if (!apiKey) {
-        throw new Error('未設定 Gemini API 金鑰！請在 js/config.js 填入有效金鑰。');
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('nutriradar:open-apikey-modal'));
+        }
+        throw new Error('未設定 Gemini API 金鑰！已為您開啟右上角 ⚙️ 設定視窗，請貼上金鑰。');
       }
 
       onProgress(15, '正在讀取並壓縮圖片...');
@@ -107,7 +110,13 @@ export async function processNutritionImage(imageFile, onProgress = () => {}) {
 
       if (!response.ok) {
         const errBody = await response.json().catch(() => ({}));
-        const errMsg = errBody?.error?.message || `HTTP ${response.status}`;
+        let errMsg = errBody?.error?.message || `HTTP ${response.status}`;
+        if (errMsg.includes('API key not valid')) {
+          errMsg = '金鑰無效或尚未設定！請點擊右上角 ⚙️ 檢查或重新貼上 Gemini API Key。';
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('nutriradar:open-apikey-modal'));
+          }
+        }
         throw new Error(`Gemini API 錯誤：${errMsg}`);
       }
 

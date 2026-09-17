@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initCollapsibleForm();
   initFormInputs();
   initInfoModal();
+  initApiKeyModal();
   
   // 初始載入第一筆（使用者照片案例）
   loadFoodData(PRESET_FOODS[0]);
@@ -532,5 +533,96 @@ function initInfoModal() {
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') closeModal();
+  });
+}
+
+// 7. 初始化 API Key 設定彈窗
+function initApiKeyModal() {
+  const modal = document.getElementById('apiKeyModal');
+  const openBtn = document.getElementById('apiKeyBtn');
+  const closeBtn = document.getElementById('closeApiKeyModalBtn');
+  const saveBtn = document.getElementById('saveApiKeyBtn');
+  const clearBtn = document.getElementById('clearApiKeyBtn');
+  const input = document.getElementById('apiKeyInput');
+  const toggleBtn = document.getElementById('toggleApiKeyVisibilityBtn');
+  const statusTip = document.getElementById('apiKeyStatusTip');
+
+  if (!modal) return;
+
+  const updateStatus = async () => {
+    const localKey = (localStorage.getItem('nutriradar_gemini_api_key') || '').trim();
+    if (localKey) {
+      const masked = localKey.length > 10 ? `${localKey.substring(0, 6)}...${localKey.substring(localKey.length - 4)}` : '已儲存';
+      statusTip.innerHTML = `✅ 已儲存自訂金鑰：<code style="color:var(--accent-green);font-weight:bold;">${masked}</code>（安全儲存在當前手機/瀏覽器）`;
+      input.value = localKey;
+      return;
+    }
+
+    // 檢查本地 config.js 是否有金鑰
+    try {
+      const mod = await import('./config.js');
+      if (mod?.CONFIG?.GEMINI_API_KEY) {
+        const k = mod.CONFIG.GEMINI_API_KEY.trim();
+        const masked = k.length > 10 ? `${k.substring(0, 6)}...${k.substring(k.length - 4)}` : '已啟用';
+        statusTip.innerHTML = `💻 使用本地 config.js 金鑰：<code style="color:var(--accent-green);font-weight:bold;">${masked}</code>（開發環境自動載入）`;
+        input.value = '';
+        return;
+      }
+    } catch (e) {}
+
+    statusTip.innerHTML = `⚠️ <span style="color:#f87171;font-weight:600;">尚未設定金鑰</span>，請貼上您的 Google Gemini API Key 以啟用 AI 拍照辨識。`;
+    input.value = '';
+  };
+
+  const openModal = () => {
+    updateStatus();
+    modal.style.display = 'flex';
+  };
+
+  const closeModal = () => {
+    modal.style.display = 'none';
+  };
+
+  if (openBtn) openBtn.addEventListener('click', openModal);
+  if (closeBtn) closeBtn.addEventListener('click', closeModal);
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) closeModal();
+  });
+
+  // 切換金鑰顯示/隱藏
+  if (toggleBtn) {
+    toggleBtn.addEventListener('click', () => {
+      input.type = input.type === 'password' ? 'text' : 'password';
+    });
+  }
+
+  // 儲存金鑰
+  if (saveBtn) {
+    saveBtn.addEventListener('click', () => {
+      const val = input.value.trim();
+      if (!val) {
+        alert('請先輸入或貼上 API Key！');
+        return;
+      }
+      localStorage.setItem('nutriradar_gemini_api_key', val);
+      updateStatus();
+      alert('✅ API Key 已安全儲存於您的裝置！');
+      closeModal();
+    });
+  }
+
+  // 清除金鑰
+  if (clearBtn) {
+    clearBtn.addEventListener('click', () => {
+      if (confirm('確定要清除瀏覽器中儲存的 API Key 嗎？')) {
+        localStorage.removeItem('nutriradar_gemini_api_key');
+        updateStatus();
+      }
+    });
+  }
+
+  // 監聽外部自動觸發事件（如辨識時未設定金鑰）
+  window.addEventListener('nutriradar:open-apikey-modal', () => {
+    openModal();
   });
 }

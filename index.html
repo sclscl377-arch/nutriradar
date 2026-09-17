@@ -23,7 +23,7 @@
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
   <link rel="icon" type="image/png" sizes="512x512" href="icons/icon-512.png">
 
-  <link rel="stylesheet" href="styles/main.css?v=3.1">
+  <link rel="stylesheet" href="styles/main.css?v=3.2">
 
   <!-- 引入 Chart.js (雷達圖) -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -44,6 +44,9 @@
     <div class="header-action">
       <button id="quickCameraBtn" class="btn-camera-header" type="button">
         <span>📸 拍照測評</span>
+      </button>
+      <button id="apiKeyBtn" class="btn-refresh-header" type="button" title="設定 Gemini API Key">
+        <span>⚙️</span>
       </button>
       <button id="forceRefreshBtn" class="btn-refresh-header" type="button" title="點擊強制更新至最新版本並清除舊快取">
         <span>🔄</span>
@@ -505,8 +508,37 @@
     </div>
   </div>
 
+  <!-- API Key 設定彈窗 -->
+  <div id="apiKeyModal" class="modal-backdrop" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title">⚙️ Gemini API Key 設定</h3>
+        <button type="button" class="modal-close" id="closeApiKeyModalBtn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 12px; line-height: 1.5;">
+          為防止金鑰上傳至公開 GitHub 遭到停用，您的金鑰將<strong>安全儲存在當前手機/瀏覽器（localStorage）</strong>中，不會上傳給任何第三方。
+        </p>
+        <div style="margin-bottom: 12px;">
+          <label style="display: block; font-size: 0.85rem; margin-bottom: 6px; color: var(--text-main); font-weight: 600;">API Key：</label>
+          <div style="display: flex; gap: 8px;">
+            <input type="password" id="apiKeyInput" placeholder="請貼上 AQ... 或 AIzaSy... 金鑰" style="flex: 1; padding: 10px 12px; background: rgba(0,0,0,0.3); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); color: var(--text-main); font-family: monospace; font-size: 0.9rem;">
+            <button type="button" id="toggleApiKeyVisibilityBtn" style="padding: 0 12px; background: rgba(255,255,255,0.08); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); color: var(--text-main); cursor: pointer;">👁️</button>
+          </div>
+        </div>
+        <div id="apiKeyStatusTip" style="font-size: 0.85rem; padding: 8px 12px; border-radius: var(--radius-sm); margin-bottom: 16px; background: rgba(255,255,255,0.05); color: var(--text-muted);">
+          狀態檢查中...
+        </div>
+      </div>
+      <div class="modal-footer" style="display: flex; gap: 10px; justify-content: flex-end;">
+        <button type="button" class="btn-secondary" id="clearApiKeyBtn" style="padding: 8px 14px; background: rgba(239,68,68,0.15); color: #f87171; border: 1px solid rgba(239,68,68,0.3); border-radius: var(--radius-sm); cursor: pointer;">清除金鑰</button>
+        <button type="button" class="btn-modal-action" id="saveApiKeyBtn" style="padding: 8px 20px;">💾 儲存並啟用</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 引入應用程式主要邏輯模組 -->
-  <script type="module" src="js/app.js?v=3.1"></script>
+  <script type="module" src="js/app.js?v=3.2"></script>
 
   <!-- ── PWA Service Worker 註冊與強制更新機制 ── -->
   <script>
