@@ -1,3 +1,5 @@
-﻿node_modules/
+node_modules/
 *.log
 test_*.js
+js/config.js
+config.js

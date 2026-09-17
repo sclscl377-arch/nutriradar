@@ -4,8 +4,39 @@
  * 取代傳統 OCR 正則解析，大幅提升曲面/反光/模糊標籤辨識率。
  */
 
-const GEMINI_API_KEY = 'AIzaSyDhviz07L_8MheJst_IUxX6YMZ8wXB5WGw';
-const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${GEMINI_API_KEY}`;
+/**
+ * 動態取得 Gemini API 配置
+ * 支援本地 config.js 或 localStorage，避免金鑰提交至 Git 倉庫外洩
+ */
+async function getGeminiConfig() {
+  let apiKey = '';
+  let model = 'gemini-3.6-flash';
+
+  // 1. 檢查瀏覽器 localStorage（方便自訂或覆蓋）
+  try {
+    const localKey = localStorage.getItem('nutriradar_gemini_api_key');
+    if (localKey && localKey.trim()) {
+      apiKey = localKey.trim();
+    }
+  } catch (e) {}
+
+  // 2. 若無，則讀取本地 config.js（已被 .gitignore 忽略保護）
+  if (!apiKey) {
+    try {
+      const configModule = await import('../config.js');
+      if (configModule?.CONFIG?.GEMINI_API_KEY) {
+        apiKey = configModule.CONFIG.GEMINI_API_KEY.trim();
+        if (configModule.CONFIG.GEMINI_MODEL) {
+          model = configModule.CONFIG.GEMINI_MODEL.trim();
+        }
+      }
+    } catch (e) {
+      // config.js 不存在（例如新 clone 的公開專案）
+    }
+  }
+
+  return { apiKey, model };
+}
 
 const GEMINI_PROMPT = `你是一個專業的食品營養標籤解析 AI。
 請仔細分析這張食品包裝或營養標籤的圖片，找出營養成分表（Nutrition Facts / 營養標示）的數值。
@@ -29,12 +60,19 @@ foodName 請嘗試從圖片上識別食品名稱，若看不到請回傳 null。
 export async function processNutritionImage(imageFile, onProgress = () => {}) {
   return new Promise(async (resolve) => {
     try {
-      onProgress(10, '正在讀取並壓縮圖片...');
+      onProgress(5, '正在載入 API 金鑰配置...');
+      const { apiKey, model } = await getGeminiConfig();
+
+      if (!apiKey) {
+        throw new Error('未設定 Gemini API 金鑰！請在 js/config.js 填入有效金鑰。');
+      }
+
+      onProgress(15, '正在讀取並壓縮圖片...');
 
       // 將圖片壓縮至最大 1024px，避免 API payload 超限
       const { base64Data, mimeType } = await compressAndEncodeImage(imageFile);
 
-      onProgress(30, '正在連線至 Gemini Vision AI...');
+      onProgress(35, '正在連線至 Gemini Vision AI...');
 
       const requestBody = {
         contents: [{
@@ -56,9 +94,10 @@ export async function processNutritionImage(imageFile, onProgress = () => {}) {
         }
       };
 
-      onProgress(50, 'Gemini AI 正在分析標籤圖片...');
+      onProgress(55, 'Gemini AI 正在分析標籤圖片...');
 
-      const response = await fetch(GEMINI_API_URL, {
+      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestBody)

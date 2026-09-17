@@ -1,6 +1,6 @@
 // NutriRadar Service Worker
 // 版本號：更新後瀏覽器會重新安裝新版 SW
-const CACHE_NAME = 'nutriradar-v4';
+const CACHE_NAME = 'nutriradar-v5';
 
 // 取得 SW 所在目錄路徑（相容本地伺服器 / 與 GitHub Pages /nutriradar/）
 const BASE_PATH = self.registration.scope;
